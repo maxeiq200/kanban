@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { addTask, tasksQueryOptions } from '../api/tasks'
+import { addTask, deleteTask, tasksQueryOptions, toggleTask } from '../api/tasks'
 import { useFilterStore } from '../store/filterStore'
 import type { Filter } from '../store/filterStore'
 
@@ -23,12 +23,25 @@ function TasksPage() {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
 
-  const mutation = useMutation({
+  const refreshTasks = () =>
+    queryClient.invalidateQueries({ queryKey: tasksQueryOptions.queryKey })
+
+  const addMutation = useMutation({
     mutationFn: addTask,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: tasksQueryOptions.queryKey })
+      refreshTasks()
       setTitle('')
     },
+  })
+
+  const toggleMutation = useMutation({
+    mutationFn: toggleTask,
+    onSuccess: refreshTasks,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTask,
+    onSuccess: refreshTasks,
   })
 
   const visibleTasks = tasks.filter((task) => {
@@ -56,7 +69,7 @@ function TasksPage() {
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          if (title.trim()) mutation.mutate(title.trim())
+          if (title.trim()) addMutation.mutate(title.trim())
         }}
       >
         <input
@@ -64,15 +77,26 @@ function TasksPage() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Новая задача"
         />
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Добавляем...' : 'Добавить'}
+        <button type="submit" disabled={addMutation.isPending}>
+          {addMutation.isPending ? 'Добавляем...' : 'Добавить'}
         </button>
       </form>
 
-      <ul>
+      <ul style={{ listStyle: 'none', padding: 0 }}>
         {visibleTasks.map((task) => (
-          <li key={task.id}>
-            {task.done ? '✅' : '⬜'} {task.title}
+          <li
+            key={task.id}
+            style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}
+          >
+            <input
+              type="checkbox"
+              checked={task.done}
+              onChange={() => toggleMutation.mutate(task.id)}
+            />
+            <span style={{ textDecoration: task.done ? 'line-through' : 'none' }}>
+              {task.title}
+            </span>
+            <button onClick={() => deleteMutation.mutate(task.id)}>Удалить</button>
           </li>
         ))}
       </ul>

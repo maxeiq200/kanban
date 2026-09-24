@@ -25,6 +25,15 @@ export async function addTask(title: string): Promise<Task> {
   tasks = [...tasks, task]
   return task
 }
+export async function toggleTask(id: number): Promise<void> {
+  await delay(300)
+  tasks = tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+}
+
+export async function deleteTask(id: number): Promise<void> {
+  await delay(300)
+  tasks = tasks.filter((t) => t.id !== id)
+}
 
 export const tasksQueryOptions = queryOptions({
   queryKey: ['tasks'],
