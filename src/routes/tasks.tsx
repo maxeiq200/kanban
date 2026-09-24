@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { addTask, deleteTask, tasksQueryOptions, toggleTask } from '../api/tasks'
+import type { Task } from '../api/tasks'
 import { useFilterStore } from '../store/filterStore'
 import type { Filter } from '../store/filterStore'
 
@@ -23,8 +24,8 @@ function TasksPage() {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
 
-  const refreshTasks = () =>
-    queryClient.invalidateQueries({ queryKey: tasksQueryOptions.queryKey })
+  const queryKey = tasksQueryOptions.queryKey
+  const refreshTasks = () => queryClient.invalidateQueries({ queryKey })
 
   const addMutation = useMutation({
     mutationFn: addTask,
@@ -36,12 +37,34 @@ function TasksPage() {
 
   const toggleMutation = useMutation({
     mutationFn: toggleTask,
-    onSuccess: refreshTasks,
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<Task[]>(queryKey)
+      queryClient.setQueryData<Task[]>(queryKey, (old) =>
+        old?.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+      )
+      return { previous }
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
+    },
+    onSettled: refreshTasks,
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
-    onSuccess: refreshTasks,
+    onMutate: async (id: number) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<Task[]>(queryKey)
+      queryClient.setQueryData<Task[]>(queryKey, (old) =>
+        old?.filter((t) => t.id !== id),
+      )
+      return { previous }
+    },
+    onError: (_error, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
+    },
+    onSettled: refreshTasks,
   })
 
   const visibleTasks = tasks.filter((task) => {
